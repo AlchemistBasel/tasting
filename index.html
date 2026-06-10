@@ -677,3 +677,14 @@ function makeCode(){
   for(let i=0;i<4;i++) c += A[Math.floor(Math.random()*A.length)];
   return c;
 }
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+/* ---------------------- start ---------------------- */
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", () => { if(isHost) initHost(); else initGuest(); });
+} else {
+  if(isHost) initHost(); else initGuest();
+}
+</script>
+</body>
+</html>
