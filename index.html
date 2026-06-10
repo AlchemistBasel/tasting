@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tinktur-Tasting — The Alchemist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#0d0b08;
+    --ink-2:#15110b;
+    --parchment:#e8ddc4;
+    --parchment-dim:#b8ad93;
+    --gold:#c9a227;
+    --gold-bright:#e9c757;
+    --gold-dim:rgba(201,162,39,.35);
+    --red:#a23b2e;
+    --green:#5f8a4e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    background-image:
+      radial-gradient(ellipse at 50% -10%, rgba(201,162,39,.07), transparent 60%),
+      radial-gradient(ellipse at 50% 110%, rgba(201,162,39,.05), transparent 60%);
+    color:var(--parchment);
+    font-family:'Cormorant Garamond',serif;
+    font-size:19px;
+    line-height:1.45;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:28px 20px 60px}
+  .wrap.wide{max-width:860px}
+
+  /* ---------- typography ---------- */
+  h1,h2,h3,.display{font-family:'Cinzel',serif;font-weight:700;letter-spacing:.06em;color:var(--gold)}
+  h1{font-size:1.55rem;text-align:center;text-transform:uppercase}
+  h2{font-size:1.05rem;text-transform:uppercase;letter-spacing:.12em}
+  .sub{text-align:center;color:var(--parchment-dim);font-style:italic;margin-top:4px}
+  .eyebrow{
+    font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--gold-dim);text-align:center;
+  }
+
+  /* ---------- ornament ---------- */
+  .rule{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--gold-dim)}
+  .rule::before,.rule::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim))}
+  .rule::after{background:linear-gradient(90deg,var(--gold-dim),transparent)}
+  .rule span{font-size:.9rem}
+
+  /* ---------- cards / panels ---------- */
+  .panel{
+    background:var(--ink-2);
+    border:1px solid rgba(201,162,39,.25);
+    border-radius:6px;
+    padding:18px;
+    margin-bottom:16px;
+    position:relative;
+  }
+  .panel::before{
+    content:"";position:absolute;inset:5px;border:1px solid rgba(201,162,39,.12);
+    border-radius:3px;pointer-events:none;
+  }
+
+  /* ---------- inputs & buttons ---------- */
+  input[type=text]{
+    width:100%;background:rgba(0,0,0,.4);border:1px solid var(--gold-dim);
+    border-radius:4px;color:var(--parchment);padding:12px 14px;
+    font-family:'Cormorant Garamond',serif;font-size:1.1rem;
+  }
+  input[type=text]:focus{outline:2px solid var(--gold);outline-offset:1px}
+  select{
+    width:100%;background:rgba(0,0,0,.4);border:1px solid var(--gold-dim);border-radius:4px;
+    color:var(--parchment);padding:10px 12px;font-family:'Cormorant Garamond',serif;font-size:1.05rem;
+  }
+  .btn{
+    display:block;width:100%;padding:14px;margin-top:14px;cursor:pointer;
+    background:linear-gradient(180deg,#d4ab2c,#a9851d);
+    color:#1a1408;border:none;border-radius:4px;
+    font-family:'Cinzel',serif;font-weight:700;font-size:.95rem;
+    letter-spacing:.12em;text-transform:uppercase;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.4;cursor:default}
+  .btn.ghost{
+    background:transparent;color:var(--gold);border:1px solid var(--gold-dim);
+  }
+  .btn.danger{background:transparent;color:var(--red);border:1px solid rgba(162,59,46,.5)}
+  .btn:focus-visible,.chip:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
+
+  /* ---------- guest: tincture cards ---------- */
+  .progress{
+    display:flex;gap:6px;margin:18px 0 22px;justify-content:center;
+  }
+  .progress i{
+    width:26px;height:6px;border-radius:3px;background:rgba(201,162,39,.18);
+  }
+  .progress i.done{background:var(--gold)}
+
+  .tincture{margin-bottom:14px}
+  .tincture .label{
+    display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;
+  }
+  .tincture .name{
+    font-family:'Cinzel',serif;font-size:1.02rem;letter-spacing:.08em;color:var(--parchment);
+  }
+  .tincture.locked .name{color:var(--gold)}
+  .tincture .state{font-style:italic;font-size:.85rem;color:var(--parchment-dim)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    padding:8px 14px;border-radius:999px;cursor:pointer;
+    background:rgba(0,0,0,.35);border:1px solid var(--gold-dim);
+    color:var(--parchment);font-family:'Cormorant Garamond',serif;font-size:1rem;
+  }
+  .chip.selected{background:var(--gold);color:#1a1408;border-color:var(--gold);font-weight:600}
+  .chip.used{opacity:.28;text-decoration:line-through;pointer-events:none}
+  .tincture.locked .chips{display:none}
+  .locked-answer{
+    display:none;font-size:1.15rem;
+  }
+  .tincture.locked .locked-answer{display:block}
+  .locked-answer .wax{
+    display:inline-block;width:14px;height:14px;border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #c9542e, #7a2417);
+    margin-right:8px;vertical-align:-1px;
+  }
+  .confirm-row{display:none;margin-top:10px}
+  .tincture.pending .confirm-row{display:block}
+  .confirm-row .btn{margin-top:0;padding:10px}
+
+  /* ---------- results ---------- */
+  .score-big{
+    font-family:'Cinzel',serif;font-size:3.2rem;color:var(--gold-bright);text-align:center;line-height:1;
+  }
+  .score-big small{display:block;font-size:.8rem;letter-spacing:.25em;color:var(--gold-dim);margin-top:6px}
+  .result-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 4px;border-bottom:1px solid rgba(201,162,39,.12);
+  }
+  .result-row:last-child{border-bottom:none}
+  .result-row .t{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.06em}
+  .result-row .a{font-style:italic}
+  .ok{color:var(--green)} .bad{color:var(--red)}
+  .lb{width:100%;border-collapse:collapse}
+  .lb td{padding:9px 6px;border-bottom:1px solid rgba(201,162,39,.12);font-size:1.05rem}
+  .lb td.rank{font-family:'Cinzel',serif;color:var(--gold);width:2.4em}
+  .lb td.pts{text-align:right;font-family:'Cinzel',serif}
+  .lb tr.me td{background:rgba(201,162,39,.08)}
+  .podium{display:flex;justify-content:center;gap:14px;align-items:flex-end;margin:20px 0}
+  .podium .p{
+    text-align:center;flex:1;max-width:160px;
+  }
+  .podium .p .box{
+    background:linear-gradient(180deg,rgba(201,162,39,.22),rgba(201,162,39,.05));
+    border:1px solid var(--gold-dim);border-radius:4px 4px 0 0;
+    display:flex;flex-direction:column;justify-content:center;padding:8px 4px;
+  }
+  .podium .p1 .box{height:110px}.podium .p2 .box{height:84px}.podium .p3 .box{height:64px}
+  .podium .nm{font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.05em;word-break:break-word}
+  .podium .pt{color:var(--gold-bright);font-size:1rem}
+  .podium .medal{font-size:1.5rem;margin-bottom:4px}
+
+  /* ---------- host ---------- */
+  .host-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  .map-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+  .map-row .tn{font-family:'Cinzel',serif;font-size:.82rem;letter-spacing:.05em}
+  .code-display{
+    font-family:'Cinzel',serif;font-size:2.4rem;letter-spacing:.35em;color:var(--gold-bright);
+    text-align:center;padding-left:.35em;
+  }
+  #qrbox{display:flex;justify-content:center;margin:14px 0}
+  #qrbox img,#qrbox canvas{border:8px solid var(--parchment);border-radius:4px}
+  .guest-line{
+    display:flex;justify-content:space-between;padding:8px 4px;
+    border-bottom:1px solid rgba(201,162,39,.12);font-size:1.05rem;
+  }
+  .guest-line .st{font-style:italic;color:var(--parchment-dim)}
+  .guest-line .st.fin{color:var(--green);font-style:normal}
+  .dist .bar-row{display:grid;grid-template-columns:90px 1fr 36px;gap:8px;align-items:center;margin:5px 0;font-size:.95rem}
+  .dist .bar{height:14px;border-radius:3px;background:rgba(201,162,39,.18);position:relative;overflow:hidden}
+  .dist .bar i{position:absolute;inset:0;width:0;background:var(--gold-dim)}
+  .dist .bar.correct i{background:var(--green)}
+  .muted{color:var(--parchment-dim);font-style:italic}
+  .center{text-align:center}
+  .hidden{display:none!important}
+  .mt{margin-top:14px}
+
+  @media (prefers-reduced-motion: no-preference){
+    .view{animation:fade .35s ease}
+    @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= GAST: BEITRETEN ======================= -->
+<div class="wrap view hidden" id="view-join">
+  <p class="eyebrow">The Alchemist · Basel</p>
+  <h1>Tinktur-Tasting</h1>
+  <p class="sub">Sieben Tinkturen. Sieben Spirituosen. Eine Zuordnung.</p>
+  <div class="rule"><span>⚗︎</span></div>
+  <div class="panel">
+    <label for="join-name" style="display:block;margin-bottom:8px">Dein Name (erscheint in der Rangliste)</label>
+    <input type="text" id="join-name" maxlength="24" autocomplete="off" placeholder="z.B. Paracelsus">
+    <div id="join-code-block" class="mt hidden">
+      <label for="join-code" style="display:block;margin-bottom:8px">Sitzungs-Code</label>
+      <input type="text" id="join-code" maxlength="4" autocomplete="off" placeholder="z.B. GOLD" style="text-transform:uppercase;letter-spacing:.3em;font-family:'Cinzel',serif">
+    </div>
+    <button class="btn" id="btn-join">Eintreten</button>
+    <p class="muted center mt hidden" id="join-error"></p>
+  </div>
+</div>
+
+<!-- ======================= GAST: RATEN ======================= -->
+<div class="wrap view hidden" id="view-play">
+  <p class="eyebrow">The Alchemist · Basel</p>
+  <h1>Tinktur-Tasting</h1>
+  <p class="sub" id="play-greet"></p>
+  <div class="progress" id="play-progress" aria-label="Fortschritt"></div>
+  <div id="play-tinctures"></div>
+  <div class="panel center hidden" id="play-done">
+    <h2>Versiegelt</h2>
+    <p class="mt">Alle sieben Tinkturen sind zugeordnet.<br>
+    Die Auflösung erscheint hier, sobald die Zeremonienmeisterin oder der Zeremonienmeister sie freigibt.</p>
+  </div>
+</div>
+
+<!-- ======================= GAST: AUFLÖSUNG ======================= -->
+<div class="wrap view hidden" id="view-result">
+  <p class="eyebrow">The Alchemist · Basel</p>
+  <h1>Die Auflösung</h1>
+  <div class="rule"><span>⚗︎</span></div>
+  <div class="panel">
+    <div class="score-big"><span id="res-score">0</span><small>von 7 Tinkturen erkannt</small></div>
+  </div>
+  <div class="panel" id="res-rows"></div>
+  <div class="panel">
+    <h2 class="center">Rangliste</h2>
+    <table class="lb" id="res-lb"></table>
+  </div>
+</div>
+
+<!-- ======================= HOST ======================= -->
+<div class="wrap wide view hidden" id="view-host">
+  <p class="eyebrow">The Alchemist · Basel</p>
+  <h1>Zeremonienmeister</h1>
+
+  <!-- Host: neue Session -->
+  <div id="host-setup">
+    <div class="rule"><span>⚗︎</span></div>
+    <div class="panel">
+      <h2>Befüllung der Tinkturen</h2>
+      <p class="muted" style="margin:6px 0 12px">Was ist heute wirklich in den Flaschen? Jede Spirituose genau einmal.</p>
+      <div class="host-grid" id="host-mapping"></div>
+      <button class="btn" id="btn-create">Session eröffnen</button>
+      <p class="muted center mt hidden" id="host-error"></p>
+    </div>
+  </div>
+
+  <!-- Host: laufende Session -->
+  <div id="host-live" class="hidden">
+    <div class="rule"><span>⚗︎</span></div>
+    <div class="panel center">
+      <h2>Eintritt für Gäste</h2>
+      <div class="code-display" id="host-code"></div>
+      <div id="qrbox"></div>
+      <p class="muted" id="host-link" style="word-break:break-all;font-size:.9rem"></p>
+    </div>
+    <div class="panel">
+      <h2>Gäste <span id="host-guestcount" style="color:var(--parchment)"></span></h2>
+      <div id="host-guests" class="mt"><p class="muted">Noch niemand eingetreten.</p></div>
+    </div>
+    <button class="btn" id="btn-reveal">Auflösung freigeben</button>
+    <button class="btn danger" id="btn-newsession">Neue Session starten</button>
+  </div>
+
+  <!-- Host: nach Auflösung -->
+  <div id="host-revealed" class="hidden">
+    <div class="rule"><span>⚗︎</span></div>
+    <div class="panel">
+      <h2 class="center">Rangliste</h2>
+      <div class="podium" id="host-podium"></div>
+      <table class="lb" id="host-lb"></table>
+    </div>
+    <div class="panel">
+      <h2>Antworten pro Tinktur</h2>
+      <div id="host-dist" class="dist mt"></div>
+    </div>
+    <button class="btn danger" id="btn-newsession2">Neue Session starten</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   KONFIGURATION
+   1. Firebase-Projekt anlegen (Realtime Database, Regeln s.u.)
+   2. Config hier einsetzen
+   3. Datei als z.B. /tasting/index.html auf GitHub Pages deployen
+
+   Empfohlene DB-Regeln (Pfad "tasting" bleibt vom Rest getrennt):
+   {
+     "rules": {
+       "tasting": { ".read": true, ".write": true },
+       ...
+     }
+   }
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCTEpz4mo_hMeLuqjHicOfxj-lJYrQmTsU",
+  authDomain: "alchemist-tasting.firebaseapp.com",
+  databaseURL: "https://alchemist-tasting-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "alchemist-tasting",
+  storageBucket: "alchemist-tasting.firebasestorage.app",
+  messagingSenderId: "257180157297",
+  appId: "1:257180157297:web:61faaf35546b5fc29be2d0"
+};
+
+const TINCTURES = [
+  { id:"benzol",     label:"Benzol" },
+  { id:"aceton",     label:"Aceton" },
+  { id:"salzsaeure", label:"Salzsäure verd. 2n" },
+  { id:"chloroform", label:"Chloroform" },
+  { id:"eisessig",   label:"Eisessig" },
+  { id:"aether",     label:"Aether" },
+  { id:"schwefel",   label:"Schwefelsäure verd. 2n" }
+];
+const SPIRITS = ["Gin","Rum","Vodka","Ethanol","Whiskey","Mescal","Cognac"];
+
+/* ============================================================ */
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+const ROOT = "tasting/sessions";
+
+const $ = id => document.getElementById(id);
+const views = ["view-join","view-play","view-result","view-host"];
+function show(view){ views.forEach(v => $(v).classList.toggle("hidden", v!==view)); window.scrollTo(0,0); }
+
+const params = new URLSearchParams(location.search);
+const isHost = location.hash === "#host";
+let sessionCode = (params.get("s")||"").toUpperCase();
+let guestId = null;
+let mySelections = {};   // ungespeicherte Auswahl pro Tinktur
+let myAnswers = {};      // bestätigte Antworten
+let sessionData = null;
+
+/* ---------------------- GAST ---------------------- */
+function initGuest(){
+  show("view-join");
+  if(!sessionCode) $("join-code-block").classList.remove("hidden");
+  const savedName = localStorage.getItem("tasting_name");
+  if(savedName) $("join-name").value = savedName;
+
+  $("btn-join").onclick = async () => {
+    const name = $("join-name").value.trim();
+    const code = sessionCode || $("join-code").value.trim().toUpperCase();
+    const err = $("join-error");
+    err.classList.add("hidden");
+    if(!name){ err.textContent="Bitte gib deinen Namen ein."; err.classList.remove("hidden"); return; }
+    if(!code || code.length!==4){ err.textContent="Bitte gib den vierstelligen Code ein."; err.classList.remove("hidden"); return; }
+    const snap = await db.ref(`${ROOT}/${code}/meta`).get();
+    if(!snap.exists()){ err.textContent="Keine Session mit diesem Code gefunden."; err.classList.remove("hidden"); return; }
+    sessionCode = code;
+    localStorage.setItem("tasting_name", name);
+
+    // Wiedereinstieg: gleicher Browser, gleiche Session
+    const saved = JSON.parse(localStorage.getItem("tasting_guest")||"null");
+    if(saved && saved.code===code && saved.id){
+      guestId = saved.id;
+      await db.ref(`${ROOT}/${code}/guests/${guestId}/name`).set(name);
+    } else {
+      const ref = db.ref(`${ROOT}/${code}/guests`).push();
+      guestId = ref.key;
+      await ref.set({ name, joinedAt: firebase.database.ServerValue.TIMESTAMP, answers:{} });
+      localStorage.setItem("tasting_guest", JSON.stringify({code, id:guestId}));
+    }
+    startPlay(name);
+  };
+}
+
+function startPlay(name){
+  $("play-greet").textContent = `Willkommen, ${name}. Ordne jeder Tinktur ihre wahre Essenz zu.`;
+  renderTinctures();
+  show("view-play");
+
+  db.ref(`${ROOT}/${sessionCode}/guests/${guestId}/answers`).on("value", s => {
+    myAnswers = s.val()||{};
+    renderTinctures();
+  });
+  db.ref(`${ROOT}/${sessionCode}/meta/state`).on("value", s => {
+    if(s.val()==="revealed") showGuestResults();
+  });
+}
+
+function usedSpirits(){
+  const used = new Set(Object.values(myAnswers).map(a=>a.spirit));
+  Object.entries(mySelections).forEach(([t,sp])=>{ if(!myAnswers[t]) used.add(sp); });
+  return used;
+}
+
+function renderTinctures(){
+  const cont = $("play-tinctures");
+  cont.innerHTML = "";
+  const used = usedSpirits();
+  let lockedCount = 0;
+
+  TINCTURES.forEach(t => {
+    const locked = !!myAnswers[t.id];
+    if(locked) lockedCount++;
+    const sel = mySelections[t.id];
+    const div = document.createElement("div");
+    div.className = "panel tincture" + (locked?" locked":"") + (!locked&&sel?" pending":"");
+    div.innerHTML = `
+      <div class="label">
+        <span class="name">${t.label}</span>
+        <span class="state">${locked ? "versiegelt" : (sel ? "" : "offen")}</span>
+      </div>
+      <div class="chips" role="group" aria-label="${t.label}"></div>
+      <div class="locked-answer"><span class="wax"></span>${locked?myAnswers[t.id].spirit:""}</div>
+      <div class="confirm-row"><button class="btn">„${sel||""}" versiegeln</button></div>`;
+    const chips = div.querySelector(".chips");
+    SPIRITS.forEach(sp => {
+      const c = document.createElement("button");
+      c.className = "chip" + (sel===sp?" selected":"") + (used.has(sp)&&sel!==sp?" used":"");
+      c.textContent = sp;
+      c.onclick = () => {
+        if(mySelections[t.id]===sp) delete mySelections[t.id];
+        else mySelections[t.id] = sp;
+        renderTinctures();
+      };
+      chips.appendChild(c);
+    });
+    div.querySelector(".confirm-row .btn").onclick = async () => {
+      const spirit = mySelections[t.id];
+      if(!spirit) return;
+      delete mySelections[t.id];
+      await db.ref(`${ROOT}/${sessionCode}/guests/${guestId}/answers/${t.id}`)
+        .set({ spirit, at: firebase.database.ServerValue.TIMESTAMP });
+      const total = Object.keys(myAnswers).length + 1;
+      if(total === TINCTURES.length){
+        db.ref(`${ROOT}/${sessionCode}/guests/${guestId}/finishedAt`)
+          .set(firebase.database.ServerValue.TIMESTAMP);
+      }
+    };
+    cont.appendChild(div);
+  });
+
+  const prog = $("play-progress");
+  prog.innerHTML = "";
+  TINCTURES.forEach(t => {
+    const i = document.createElement("i");
+    if(myAnswers[t.id]) i.classList.add("done");
+    prog.appendChild(i);
+  });
+  $("play-done").classList.toggle("hidden", lockedCount !== TINCTURES.length);
+}
+
+async function showGuestResults(){
+  const snap = await db.ref(`${ROOT}/${sessionCode}`).get();
+  const data = snap.val();
+  if(!data) return;
+  const solution = data.meta.solution;
+  const ranked = computeRanking(data);
+  const me = ranked.find(r => r.id === guestId);
+
+  $("res-score").textContent = me ? me.score : 0;
+
+  const rows = $("res-rows");
+  rows.innerHTML = "<h2 class='center' style='margin-bottom:10px'>Deine Zuordnung</h2>";
+  TINCTURES.forEach(t => {
+    const mine = (data.guests?.[guestId]?.answers?.[t.id]||{}).spirit || "—";
+    const correct = solution[t.id];
+    const ok = mine === correct;
+    const r = document.createElement("div");
+    r.className = "result-row";
+    r.innerHTML = `<span class="t">${t.label}</span>
+      <span class="a ${ok?'ok':'bad'}">${mine}${ok?" ✓":` ✗ <span class='muted'>(${correct})</span>`}</span>`;
+    rows.appendChild(r);
+  });
+
+  const lb = $("res-lb");
+  lb.innerHTML = "";
+  ranked.forEach((r,i) => {
+    const tr = document.createElement("tr");
+    if(r.id===guestId) tr.className="me";
+    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / 7</td>`;
+    lb.appendChild(tr);
+  });
+  show("view-result");
+}
+
+/* ---------------------- HOST ---------------------- */
+function initHost(){
+  show("view-host");
+  const cont = $("host-mapping");
+  TINCTURES.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "map-row";
+    row.innerHTML = `<span class="tn">${t.label}</span>
+      <select data-t="${t.id}"><option value="">— wählen —</option>
+      ${SPIRITS.map(s=>`<option>${s}</option>`).join("")}</select>`;
+    cont.appendChild(row);
+  });
+
+  // letzte Session in diesem Browser wieder öffnen?
+  const savedHost = localStorage.getItem("tasting_host_session");
+  if(savedHost){
+    db.ref(`${ROOT}/${savedHost}/meta`).get().then(s => {
+      if(s.exists()) attachHostSession(savedHost);
+    });
+  }
+
+  $("btn-create").onclick = async () => {
+    const err = $("host-error");
+    err.classList.add("hidden");
+    const solution = {};
+    const chosen = [];
+    document.querySelectorAll("#host-mapping select").forEach(sel => {
+      solution[sel.dataset.t] = sel.value;
+      if(sel.value) chosen.push(sel.value);
+    });
+    if(chosen.length !== TINCTURES.length || new Set(chosen).size !== SPIRITS.length){
+      err.textContent = "Bitte jeder Tinktur genau eine Spirituose zuordnen — jede genau einmal.";
+      err.classList.remove("hidden");
+      return;
+    }
+    const code = makeCode();
+    await db.ref(`${ROOT}/${code}/meta`).set({
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      state: "open",
+      solution
+    });
+    localStorage.setItem("tasting_host_session", code);
+    attachHostSession(code);
+  };
+
+  const reset = () => {
+    localStorage.removeItem("tasting_host_session");
+    location.reload();
+  };
+  $("btn-newsession").onclick = reset;
+  $("btn-newsession2").onclick = reset;
+}
+
+function attachHostSession(code){
+  $("host-setup").classList.add("hidden");
+  $("host-live").classList.remove("hidden");
+  $("host-code").textContent = code;
+
+  const base = location.origin + location.pathname;
+  const link = `${base}?s=${code}`;
+  $("host-link").textContent = link;
+  $("qrbox").innerHTML = "";
+  new QRCode($("qrbox"), { text: link, width: 220, height: 220, colorDark:"#0d0b08", colorLight:"#e8ddc4" });
+
+  db.ref(`${ROOT}/${code}`).on("value", snap => {
+    sessionData = snap.val();
+    if(!sessionData) return;
+    renderHostGuests();
+    if(sessionData.meta.state === "revealed") renderHostReveal();
+  });
+
+  $("btn-reveal").onclick = () => {
+    const n = Object.keys(sessionData?.guests||{}).length;
+    if(confirm(`Auflösung für ${n} Gäste freigeben? Danach sind keine Antworten mehr möglich.`)){
+      db.ref(`${ROOT}/${code}/meta/state`).set("revealed");
+    }
+  };
+}
+
+function renderHostGuests(){
+  const guests = sessionData.guests || {};
+  const ids = Object.keys(guests);
+  $("host-guestcount").textContent = ids.length ? `· ${ids.length}` : "";
+  const cont = $("host-guests");
+  if(!ids.length){ cont.innerHTML = "<p class='muted'>Noch niemand eingetreten.</p>"; return; }
+  cont.innerHTML = "";
+  ids.sort((a,b)=>(guests[a].joinedAt||0)-(guests[b].joinedAt||0)).forEach(id => {
+    const g = guests[id];
+    const done = Object.keys(g.answers||{}).length;
+    const fin = done === TINCTURES.length;
+    const row = document.createElement("div");
+    row.className = "guest-line";
+    row.innerHTML = `<span>${esc(g.name||"?")}</span>
+      <span class="st ${fin?'fin':''}">${fin?"✓ fertig":done+" / "+TINCTURES.length}</span>`;
+    cont.appendChild(row);
+  });
+}
+
+function renderHostReveal(){
+  $("host-live").classList.add("hidden");
+  $("host-revealed").classList.remove("hidden");
+  const ranked = computeRanking(sessionData);
+
+  // Podium
+  const podium = $("host-podium");
+  podium.innerHTML = "";
+  const order = [[1,"p2","🥈"],[0,"p1","🥇"],[2,"p3","🥉"]];
+  order.forEach(([idx,cls,medal]) => {
+    if(!ranked[idx]) return;
+    const p = document.createElement("div");
+    p.className = "p " + cls;
+    p.innerHTML = `<div class="medal">${medal}</div>
+      <div class="box"><span class="nm">${esc(ranked[idx].name)}</span>
+      <span class="pt">${ranked[idx].score} / 7</span></div>`;
+    podium.appendChild(p);
+  });
+
+  // Tabelle
+  const lb = $("host-lb");
+  lb.innerHTML = "";
+  ranked.forEach((r,i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / 7</td>`;
+    lb.appendChild(tr);
+  });
+
+  // Verteilung pro Tinktur
+  const dist = $("host-dist");
+  dist.innerHTML = "";
+  const guests = sessionData.guests || {};
+  const total = Object.keys(guests).length || 1;
+  TINCTURES.forEach(t => {
+    const correct = sessionData.meta.solution[t.id];
+    const counts = {};
+    Object.values(guests).forEach(g => {
+      const a = g.answers?.[t.id]?.spirit;
+      if(a) counts[a] = (counts[a]||0)+1;
+    });
+    const h = document.createElement("h2");
+    h.textContent = t.label;
+    h.style.marginTop = "16px";
+    dist.appendChild(h);
+    SPIRITS.filter(s=>counts[s]||s===correct).sort((a,b)=>(counts[b]||0)-(counts[a]||0)).forEach(s => {
+      const n = counts[s]||0;
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML = `<span>${s}${s===correct?" ✓":""}</span>
+        <div class="bar ${s===correct?'correct':''}"><i style="width:${Math.round(n/total*100)}%"></i></div>
+        <span>${n}</span>`;
+      dist.appendChild(row);
+    });
+  });
+}
+
+/* ---------------------- gemeinsam ---------------------- */
+function computeRanking(data){
+  const solution = data.meta.solution;
+  const guests = data.guests || {};
+  return Object.entries(guests).map(([id,g]) => {
+    let score = 0, lastAt = 0;
+    TINCTURES.forEach(t => {
+      const a = g.answers?.[t.id];
+      if(a){
+        if(a.spirit === solution[t.id]) score++;
+        if(a.at > lastAt) lastAt = a.at;
+      }
+    });
+    return { id, name: g.name||"?", score, finishedAt: g.finishedAt || lastAt || Infinity };
+  }).sort((a,b) => b.score - a.score || a.finishedAt - b.finishedAt);
+}
+
+function makeCode(){
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // ohne I/O
+  let c = "";
+  for(let i=0;i<4;i++) c += A[Math.floor(Math.random()*A.length)];
+  return c;
+}
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+/* ---------------------- start ---------------------- */
+if(isHost) initHost(); else initGuest();
+</script>
+</body>
+</html>
