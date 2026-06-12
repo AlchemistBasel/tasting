@@ -52,6 +52,12 @@
   .rule::after{background:linear-gradient(90deg,var(--gold-dim),transparent)}
   .rule span{font-size:.9rem}
 
+  .logo-illu{
+    display:block;margin:0 auto 12px;width:150px;max-width:40vw;
+    mix-blend-mode:screen;opacity:.92;pointer-events:none;user-select:none;
+  }
+  .logo-illu.sm{width:110px}
+
   /* ---------- cards / panels ---------- */
   .panel{
     background:var(--ink-2);
@@ -167,7 +173,9 @@
 
   /* ---------- host ---------- */
   .host-grid{display:grid;grid-template-columns:1fr;gap:10px}
-  .map-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+  .map-row{display:grid;grid-template-columns:1.2fr 1fr auto;gap:10px;align-items:center}
+  .map-row .row-del{background:none;border:1px solid rgba(162,59,46,.5);color:var(--red);border-radius:4px;width:38px;height:38px;cursor:pointer;font-size:1rem}
+  .map-row .row-del:hover{background:rgba(162,59,46,.15)}
   .map-row .tn{font-family:'Cinzel',serif;font-size:.82rem;letter-spacing:.05em}
   .code-display{
     font-family:'Cinzel',serif;font-size:2.4rem;letter-spacing:.35em;color:var(--gold-bright);
@@ -200,6 +208,7 @@
 
 <!-- ======================= GAST: BEITRETEN ======================= -->
 <div class="wrap view hidden" id="view-join">
+  <img src="alchemist.jpg" alt="" class="logo-illu">
   <p class="eyebrow">The Alchemist · Basel</p>
   <h1>Tinktur-Tasting</h1>
   <p class="sub">Sieben Tinkturen. Sieben Spirituosen. Eine Zuordnung.</p>
@@ -235,11 +244,12 @@
 
 <!-- ======================= GAST: AUFLÖSUNG ======================= -->
 <div class="wrap view hidden" id="view-result">
+  <img src="alchemist.jpg" alt="" class="logo-illu sm">
   <p class="eyebrow">The Alchemist · Basel</p>
   <h1>Die Auflösung</h1>
   <div class="rule"><span>⚗︎</span></div>
   <div class="panel">
-    <div class="score-big"><span id="res-score">0</span><small>von 7 Tinkturen erkannt</small></div>
+    <div class="score-big"><span id="res-score">0</span><small>von <span id="res-total">7</span> Tinkturen erkannt</small></div>
   </div>
   <div class="panel" id="res-rows"></div>
   <div class="panel">
@@ -254,6 +264,7 @@
 
 <!-- ======================= HOST ======================= -->
 <div class="wrap wide view hidden" id="view-host">
+  <img src="alchemist.jpg" alt="" class="logo-illu sm">
   <p class="eyebrow">The Alchemist · Basel</p>
   <h1>Zeremonienmeister</h1>
 
@@ -262,8 +273,11 @@
     <div class="rule"><span>⚗︎</span></div>
     <div class="panel">
       <h2>Befüllung der Tinkturen</h2>
-      <p class="muted" style="margin:6px 0 12px">Was ist heute wirklich in den Flaschen? Jede Spirituose genau einmal.</p>
+      <p class="muted" style="margin:6px 0 12px">Flaschen-Namen anpassen und festlegen, was wirklich drin ist. Jede Spirituose höchstens einmal.</p>
+      <label for="spirits-input" style="display:block;margin-bottom:6px;font-size:.95rem">Spirituosen (durch Komma getrennt)</label>
+      <input type="text" id="spirits-input" value="Gin, Rum, Vodka, Ethanol, Whiskey, Mescal, Cognac" style="margin-bottom:14px">
       <div class="host-grid" id="host-mapping"></div>
+      <button class="btn ghost" id="btn-addrow" type="button">+ Flasche hinzufügen</button>
       <button class="btn" id="btn-create">Session eröffnen</button>
       <p class="muted center mt hidden" id="host-error"></p>
     </div>
@@ -327,16 +341,25 @@ const FIREBASE_CONFIG = {
   appId: "1:257180157297:web:61faaf35546b5fc29be2d0"
 };
 
-const TINCTURES = [
+const DEFAULT_TINCTURE_NAMES = ["Benzol","Aceton","Salzsäure","Chloroform","Eisessig","Aether","Schwefelsäure"];
+const DEFAULT_SPIRITS = ["Gin","Rum","Vodka","Ethanol","Whiskey","Mescal","Cognac"];
+// Fallback für alte Sessions, die vor dem Update erstellt wurden
+const LEGACY_TINCTURES = [
   { id:"benzol",     label:"Benzol" },
   { id:"aceton",     label:"Aceton" },
-  { id:"salzsaeure", label:"Salzsäure verd. 2n" },
+  { id:"salzsaeure", label:"Salzsäure" },
   { id:"chloroform", label:"Chloroform" },
   { id:"eisessig",   label:"Eisessig" },
   { id:"aether",     label:"Aether" },
-  { id:"schwefel",   label:"Schwefelsäure verd. 2n" }
+  { id:"schwefel",   label:"Schwefelsäure" }
 ];
-const SPIRITS = ["Gin","Rum","Vodka","Ethanol","Whiskey","Mescal","Cognac"];
+let TINCTURES = LEGACY_TINCTURES;
+let SPIRITS = DEFAULT_SPIRITS;
+
+function applySessionMeta(meta){
+  if(meta && meta.tinctures && meta.tinctures.length) TINCTURES = meta.tinctures;
+  if(meta && meta.spirits && meta.spirits.length) SPIRITS = meta.spirits;
+}
 
 /* ============================================================ */
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -371,6 +394,7 @@ function initGuest(){
     if(!code || code.length!==4){ err.textContent="Bitte gib den vierstelligen Code ein."; err.classList.remove("hidden"); return; }
     const snap = await db.ref(`${ROOT}/${code}/meta`).get();
     if(!snap.exists()){ err.textContent="Keine Session mit diesem Code gefunden."; err.classList.remove("hidden"); return; }
+    applySessionMeta(snap.val());
     sessionCode = code;
     localStorage.setItem("tasting_name", name);
 
@@ -470,11 +494,13 @@ async function showGuestResults(){
   const snap = await db.ref(`${ROOT}/${sessionCode}`).get();
   const data = snap.val();
   if(!data) return;
+  applySessionMeta(data.meta);
   const solution = data.meta.solution;
   const ranked = computeRanking(data);
   const me = ranked.find(r => r.id === guestId);
 
   $("res-score").textContent = me ? me.score : 0;
+  $("res-total").textContent = TINCTURES.length;
 
   const rows = $("res-rows");
   rows.innerHTML = "<h2 class='center' style='margin-bottom:10px'>Deine Zuordnung</h2>";
@@ -494,24 +520,44 @@ async function showGuestResults(){
   ranked.forEach((r,i) => {
     const tr = document.createElement("tr");
     if(r.id===guestId) tr.className="me";
-    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / 7</td>`;
+    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / ${TINCTURES.length}</td>`;
     lb.appendChild(tr);
   });
   show("view-result");
 }
 
 /* ---------------------- HOST ---------------------- */
+function currentSpirits(){
+  return $("spirits-input").value.split(",").map(s=>s.trim()).filter(Boolean);
+}
+
+function refreshSpiritOptions(){
+  const spirits = currentSpirits();
+  document.querySelectorAll("#host-mapping select").forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— wählen —</option>' + spirits.map(s=>`<option>${esc(s)}</option>`).join("");
+    if(spirits.includes(cur)) sel.value = cur;
+  });
+}
+
+function addMappingRow(label){
+  const cont = $("host-mapping");
+  const row = document.createElement("div");
+  row.className = "map-row";
+  row.innerHTML = `<input type="text" class="t-name" placeholder="Name der Tinktur">
+    <select><option value="">— wählen —</option></select>
+    <button type="button" class="row-del" title="Flasche entfernen">✕</button>`;
+  row.querySelector(".t-name").value = label;
+  row.querySelector(".row-del").onclick = () => { row.remove(); };
+  cont.appendChild(row);
+  refreshSpiritOptions();
+}
+
 function initHost(){
   show("view-host");
-  const cont = $("host-mapping");
-  TINCTURES.forEach(t => {
-    const row = document.createElement("div");
-    row.className = "map-row";
-    row.innerHTML = `<span class="tn">${t.label}</span>
-      <select data-t="${t.id}"><option value="">— wählen —</option>
-      ${SPIRITS.map(s=>`<option>${s}</option>`).join("")}</select>`;
-    cont.appendChild(row);
-  });
+  DEFAULT_TINCTURE_NAMES.forEach(l => addMappingRow(l));
+  $("spirits-input").addEventListener("input", refreshSpiritOptions);
+  $("btn-addrow").onclick = () => addMappingRow("");
 
   // letzte Session in diesem Browser wieder öffnen?
   const savedHost = localStorage.getItem("tasting_host_session");
@@ -524,22 +570,32 @@ function initHost(){
   $("btn-create").onclick = async () => {
     const err = $("host-error");
     err.classList.add("hidden");
+    const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
+
+    const rows = [...document.querySelectorAll("#host-mapping .map-row")].map(r => ({
+      label: r.querySelector(".t-name").value.trim(),
+      spirit: r.querySelector("select").value
+    }));
+    if(rows.length < 2) return fail("Mindestens zwei Flaschen anlegen.");
+    if(rows.some(r => !r.label)) return fail("Bitte jeder Flasche einen Namen geben.");
+    const labels = rows.map(r => r.label.toLowerCase());
+    if(new Set(labels).size !== labels.length) return fail("Flaschen-Namen dürfen sich nicht doppeln.");
+    if(rows.some(r => !r.spirit)) return fail("Bitte jeder Flasche eine Spirituose zuordnen.");
+    const chosen = rows.map(r => r.spirit);
+    if(new Set(chosen).size !== chosen.length) return fail("Jede Spirituose darf nur einmal vorkommen.");
+
+    const tinctures = rows.map((r, i) => ({ id: "t" + i, label: r.label }));
     const solution = {};
-    const chosen = [];
-    document.querySelectorAll("#host-mapping select").forEach(sel => {
-      solution[sel.dataset.t] = sel.value;
-      if(sel.value) chosen.push(sel.value);
-    });
-    if(chosen.length !== TINCTURES.length || new Set(chosen).size !== SPIRITS.length){
-      err.textContent = "Bitte jeder Tinktur genau eine Spirituose zuordnen — jede genau einmal.";
-      err.classList.remove("hidden");
-      return;
-    }
+    rows.forEach((r, i) => { solution["t" + i] = r.spirit; });
+    const spirits = currentSpirits();
+
     const code = makeCode();
     await db.ref(`${ROOT}/${code}/meta`).set({
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       state: "open",
-      solution
+      solution,
+      tinctures,
+      spirits
     });
     localStorage.setItem("tasting_host_session", code);
     attachHostSession(code);
@@ -567,6 +623,7 @@ function attachHostSession(code){
   db.ref(`${ROOT}/${code}`).on("value", snap => {
     sessionData = snap.val();
     if(!sessionData) return;
+    applySessionMeta(sessionData.meta);
     renderHostGuests();
     if(sessionData.meta.state === "revealed") renderHostReveal();
   });
@@ -613,7 +670,7 @@ function renderHostReveal(){
     p.className = "p " + cls;
     p.innerHTML = `<div class="medal">${medal}</div>
       <div class="box"><span class="nm">${esc(ranked[idx].name)}</span>
-      <span class="pt">${ranked[idx].score} / 7</span></div>`;
+      <span class="pt">${ranked[idx].score} / ${TINCTURES.length}</span></div>`;
     podium.appendChild(p);
   });
 
@@ -622,7 +679,7 @@ function renderHostReveal(){
   lb.innerHTML = "";
   ranked.forEach((r,i) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / 7</td>`;
+    tr.innerHTML = `<td class="rank">${i+1}.</td><td>${esc(r.name)}</td><td class="pts">${r.score} / ${TINCTURES.length}</td>`;
     lb.appendChild(tr);
   });
 
